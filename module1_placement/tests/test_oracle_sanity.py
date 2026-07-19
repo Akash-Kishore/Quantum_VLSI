@@ -3,9 +3,13 @@ STAGE 2 — Oracle Sanity Check (Aer Statevector Simulation)
 ============================================================
 
 Deterministic, exact statevector check of the placement oracle on
-three hand-picked classical inputs. No Hadamards, no diffusion, no
+hand-picked classical inputs. No Hadamards, no diffusion, no
 measurement sampling. Uses ``AerSimulator(method="statevector")`` with
 ``save_statevector()`` for efficient compiled simulation on CPU.
+
+Phase 3 cases (A, B, C) validate collision + validity flags.
+Phase 3b cases (A3b, B3b, C3b) validate the adjacency-extended
+12-flag oracle.
 
 Must pass before proceeding to stage 3.
 """
@@ -27,7 +31,7 @@ from module1_placement.placement_oracle import build_placement_oracle, TOTAL_QUB
 
 
 def _build_test_circuit(x_gates: list[int]) -> QuantumCircuit:
-    """Build a 25-qubit circuit with specified X gates, then compose the oracle.
+    """Build a TOTAL_QUBITS-qubit circuit with specified X gates, then compose the oracle.
 
     Parameters
     ----------
@@ -54,8 +58,8 @@ def main() -> None:
     # Pre-check: oracle qubit count and decomposed gate count
     # ------------------------------------------------------------------
     oracle = build_placement_oracle()
-    assert oracle.num_qubits == 25, (
-        f"FAIL: Oracle has {oracle.num_qubits} qubits, expected 25. "
+    assert oracle.num_qubits == TOTAL_QUBITS, (
+        f"FAIL: Oracle has {oracle.num_qubits} qubits, expected {TOTAL_QUBITS}. "
         f"Possible ancilla drift from mcx."
     )
     print(f"[STAGE 2] Oracle qubit count: {oracle.num_qubits}  ✓")
@@ -68,9 +72,10 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Each case: (name, meaning, x_gates, expected_index, should_be_negative)
     cases = [
+        # ── Phase 3 cases (unchanged, regression check) ──────────────
         (
             "A",
-            "Sites (0,1,2,3) — valid, collision-free",
+            "Sites (0,1,2,3) — valid, collision-free, chain-adjacent",
             [3, 7, 9, 10],   # cell0=0, cell1=1(q3), cell2=2(q7), cell3=3(q9+q10)
             1672,
             True,   # should be ≈ -1+0j (marked)
@@ -87,6 +92,29 @@ def main() -> None:
             "Sites (0,1,2,7) — cell3 has invalid code 7",
             [3, 7, 9, 10, 11],  # cell0=0, cell1=1(q3), cell2=2(q7), cell3=7(q9+q10+q11)
             3720,
+            False,  # should be ≈ +1+0j (unmarked)
+        ),
+        # ── Phase 3b adjacency cases ─────────────────────────────────
+        (
+            "A3b",
+            "Sites (0,1,2,3) — valid, collision-free, chain-adjacent (adjacency check)",
+            [3, 7, 9, 10],   # same as Case A — still marked under 12-flag oracle
+            1672,
+            True,   # should be ≈ -1+0j (marked)
+        ),
+        (
+            "B3b",
+            "Sites (0,1,3,2) — collision-free+valid, but chain BROKEN (1-3 not adjacent)",
+            # cell0=0(none), cell1=1(q3), cell2=3(q6+q7), cell3=2(q10)
+            [3, 6, 7, 10],
+            1224,
+            False,  # should be ≈ +1+0j (unmarked — adjacency violation)
+        ),
+        (
+            "C3b",
+            "Sites (0,0,1,2) — collision regression (still rejected under 12-flag oracle)",
+            [6, 10],          # same as Case B
+            1088,
             False,  # should be ≈ +1+0j (unmarked)
         ),
     ]

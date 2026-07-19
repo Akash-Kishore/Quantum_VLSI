@@ -4,6 +4,9 @@ STAGE 1 — Encoding Unit Tests (Pure Python)
 
 Validates the bitstring decode logic and validity checking with no
 quantum simulation at all. Must pass before proceeding to stage 2.
+
+Phase 3b additions: also validates the classical adjacency-constrained
+placement count and chain-validity of specific placements.
 """
 
 from __future__ import annotations
@@ -19,6 +22,10 @@ if _project_root not in sys.path:
 from module1_placement.encoding import (
     decode_bitstring_to_placement,
     is_valid_collision_free,
+)
+from module1_placement.classical_baseline import (
+    count_valid_placements_with_adjacency,
+    SITE_ADJACENCY_EDGES,
 )
 
 
@@ -117,6 +124,40 @@ def main() -> None:
         f"FAILED: decode('000000000000') = {decoded2} should be invalid (collision)"
     )
     print(f"  decode('000000000000') = {decoded2} → valid={is_valid_collision_free(decoded2)}  ✓")
+
+    # ------------------------------------------------------------------
+    # Test 6 [Phase 3b]: Adjacency-constrained placement count
+    # ------------------------------------------------------------------
+    print("\n[STAGE 1] Testing adjacency-constrained placement count...")
+    m_adj = count_valid_placements_with_adjacency()
+    print(f"  count_valid_placements_with_adjacency() = {m_adj}")
+    assert m_adj == 96, (
+        f"FAILED: Expected 96 adjacency-constrained placements, got {m_adj}"
+    )
+    print(f"  Confirmed: M_adj = {m_adj}  ✓")
+
+    # ------------------------------------------------------------------
+    # Test 7 [Phase 3b]: Chain-validity of specific placements
+    # ------------------------------------------------------------------
+    print("\n[STAGE 1] Testing chain-validity of hand-picked placements...")
+
+    def is_chain_valid(p):
+        """Check chain constraint: cell0-cell1 and cell1-cell2 adjacent."""
+        return (p[0], p[1]) in SITE_ADJACENCY_EDGES and (p[1], p[2]) in SITE_ADJACENCY_EDGES
+
+    # (0,1,2,3): 0-1 adjacent (row 0 neighbors), 1-2 adjacent → chain-valid
+    p_valid = (0, 1, 2, 3)
+    assert is_chain_valid(p_valid) is True, (
+        f"FAILED: {p_valid} should be chain-valid"
+    )
+    print(f"  is_chain_valid({p_valid}) = True  ✓")
+
+    # (0,1,3,2): 0-1 adjacent, but 1-3 is NOT an edge → chain-invalid
+    p_invalid = (0, 1, 3, 2)
+    assert is_chain_valid(p_invalid) is False, (
+        f"FAILED: {p_invalid} should be chain-invalid (1-3 not adjacent)"
+    )
+    print(f"  is_chain_valid({p_invalid}) = False  ✓")
 
     # ------------------------------------------------------------------
     # Summary
