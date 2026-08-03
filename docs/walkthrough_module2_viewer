@@ -1,0 +1,83 @@
+# Module 2 Viewer — Walkthrough
+
+## Discovery Step
+
+Read [atpg_oracle.py](file:///mnt/c/Quantum_VLSI/module2_atpg/atpg_oracle.py#L63-L67) and confirmed:
+
+| Qubit | Role |
+|-------|------|
+| q0 | A (search) |
+| q1 | B (search) |
+| q2 | Cin (search) |
+| q3 | Fault-free Cout ancilla |
+| q4 | Faulty Cout ancilla |
+| q5 | Flag ancilla |
+
+**Input qubits**: `[0, 1, 2]`. **Oracle function**: `build_atpg_oracle()`.
+
+**Detecting states**: Statevector indices **3** (binary `011` → A=1,B=1,Cin=0) and **7** (binary `111` → A=1,B=1,Cin=1). Cross-checked against `MARKED_RAW = {"011", "111"}` in [test_atpg.py](file:///mnt/c/Quantum_VLSI/module2_atpg/tests/test_atpg.py#L130) — exact match.
+
+---
+
+## Files Created
+
+| File | Purpose |
+|------|---------|
+| [\_\_init\_\_.py](file:///mnt/c/Quantum_VLSI/module2_atpg/viewer/__init__.py) | Package init |
+| [\_\_init\_\_.py](file:///mnt/c/Quantum_VLSI/module2_atpg/viewer/tests/__init__.py) | Test package init |
+| [generate_module2_viewer.py](file:///mnt/c/Quantum_VLSI/module2_atpg/viewer/generate_module2_viewer.py) | Python data generator (Grover sim → inline JSON → HTML) |
+| [module2_viewer.html](file:///mnt/c/Quantum_VLSI/module2_atpg/viewer/module2_viewer.html) | Self-contained viewer (bar chart + fault diagram) |
+| [test_viewer_data.py](file:///mnt/c/Quantum_VLSI/module2_atpg/viewer/tests/test_viewer_data.py) | 3-stage test suite |
+
+---
+
+## Test Results — Full Output
+
+All 3 stages pass:
+
+### Stage 1: Detecting-Set Consistency ✓
+- `DETECTING_INDICES = {3, 7}`
+- Index 3 → `A=1,B=1,Cin=0`, bitstring `"011"` 
+- Index 7 → `A=1,B=1,Cin=1`, bitstring `"111"`
+- Matches `MARKED_RAW` from `test_atpg.py`
+
+### Stage 2: Analytic k=0 ✓
+- All 8 per-state probabilities = 0.125 (1/8) within 1e-9
+- `success_probability` = 0.25 (2/8) within 1e-9
+
+### Stage 3: Full Pipeline ✓
+
+| Frame | k | Success Prob | Residual | Notes |
+|-------|---|-------------|----------|-------|
+| 0 | 0 | 25.0000% | 0.00e+00 | Uniform baseline ✓ |
+| 1 | 1 | **100.0000%** | 3.33e-16 | First peak ✓ |
+| 2 | 2 | 25.0000% | 5.55e-16 | |
+| 3 | 3 | 25.0000% | 6.66e-16 | |
+| 4 | 4 | **100.0000%** | 3.33e-16 | Second peak ✓ |
+| 5 | 5 | 25.0000% | 4.44e-16 | |
+| 6 | 6 | 25.0000% | 4.44e-16 | |
+
+- HTML file: 32,481 bytes ✓ (> 5,000)
+- Contains `"iteration"` ✓
+- All residual checks passed (all < 1e-9 by orders of magnitude)
+
+### Notable Observation
+
+The periodicity is **exact period-3**, not "approximately periodic" — the success probability hits exactly 100% at both k=1 and k=4, with exactly 25% at every other frame. This is because with M=2, N=8 the Grover rotation angle is θ = arcsin(√(2/8)) = 30°, and sin²((2k+1)·30°) cycles through values {sin²(30°)=0.25, sin²(90°)=1.0, sin²(150°)=0.25, sin²(210°)=0.25, sin²(270°)=1.0, sin²(330°)=0.25, sin²(390°)=0.25, ...}. The 25% values at k=0,2,3,5,6 are not "dips" — they're the random-guess baseline returning exactly, a consequence of the angle being a rational multiple of 180°.
+
+---
+
+## Package Lock — Verbatim
+
+> **🚨 NON-NEGOTIABLE BARRIER: NO PACKAGE OR VERSION CHANGES 🚨**
+>
+> | Package | Version — DO NOT CHANGE |
+> |---|---|
+> | Python | 3.10 |
+> | qiskit | 1.2.4 |
+> | qiskit-aer-gpu-cu11 | 0.15.1 |
+> | numpy | 1.26.4 |
+> | matplotlib | 3.8.4 |
+> | CUDA Toolkit (inside WSL2) | 11.8 |
+>
+> Zero new dependencies — Python or JS. No pytest, ever — every test file uses plain `assert` inside `main()`. No CDN, no external script tags, no template file.
