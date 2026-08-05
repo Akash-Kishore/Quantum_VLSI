@@ -67,16 +67,16 @@ def _stage_2b() -> None:
     # Build the full QAOA circuit (includes measurement)
     qc = build_qaoa_circuit(qubo, gammas=[0.0], betas=[0.0], n_qubits=TOTAL_QUBITS)
 
-    # Run on GPU AerSimulator with CPU fallback (project convention)
-    try:
-        sim = AerSimulator(method="statevector", device="GPU")
-    except AerError:
-        print("  (GPU unavailable, falling back to CPU)")
-        sim = AerSimulator(method="statevector", device="CPU")
-
     n_shots = 8192
-    qc_t = transpile(qc, sim)
-    result = sim.run(qc_t, shots=n_shots).result()
+    sim = AerSimulator(method="statevector", device="GPU")
+    try:
+        qc_t = transpile(qc, sim)
+        result = sim.run(qc_t, shots=n_shots).result()
+    except (AerError, RuntimeError) as e:
+        print(f"  (GPU execution failed ({e}), falling back to CPU)")
+        sim = AerSimulator(method="statevector", device="CPU")
+        qc_t = transpile(qc, sim)
+        result = sim.run(qc_t, shots=n_shots).result()
     counts = result.get_counts(qc_t)
 
     n_unique = len(counts)

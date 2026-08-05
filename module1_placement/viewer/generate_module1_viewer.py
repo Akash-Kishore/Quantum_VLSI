@@ -151,7 +151,7 @@ def generate_frames() -> list[dict[str, Any]]:
             sim = AerSimulator(method="statevector", device="GPU")
             transpiled = transpile(qc, sim)
             result = sim.run(transpiled).result()
-        except AerError as exc:
+        except (AerError, RuntimeError) as exc:
             print(f"  GPU unavailable ({exc}), falling back to CPU.")
             sim = AerSimulator(method="statevector", device="CPU")
             transpiled = transpile(qc, sim)

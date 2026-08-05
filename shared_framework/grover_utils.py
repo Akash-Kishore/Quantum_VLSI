@@ -145,7 +145,7 @@ def run_circuit(
         transpiled = transpile(circuit, sim)
         result = sim.run(transpiled, shots=shots).result()
         return result.get_counts()
-    except AerError as exc:
+    except (AerError, RuntimeError) as exc:
         if device.upper() != "CPU":
             print(f"[grover_utils] GPU unavailable ({exc}), falling back to CPU.")
             sim_cpu = AerSimulator(method="statevector", device="CPU")
