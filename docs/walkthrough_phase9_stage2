@@ -1,0 +1,96 @@
+# Phase 9 Stage 2 — QAOA Circuit Implementation Walkthrough
+
+## Files Created
+
+| File | Purpose |
+|------|---------|
+| [qubit_mapping.py](file:///mnt/c/Quantum_VLSI/module1_placement/qaoa/qubit_mapping.py) | `(cell, site)` ↔ qubit index bijection (`cell*7 + site`) |
+| [test_qubit_mapping.py](file:///mnt/c/Quantum_VLSI/module1_placement/qaoa/tests/test_qubit_mapping.py) | Stage 2a: bijection, round-trip, OOB validation |
+| [qaoa_circuit.py](file:///mnt/c/Quantum_VLSI/module1_placement/qaoa/qaoa_circuit.py) | `build_cost_unitary`, `build_mixer_unitary`, `build_qaoa_circuit` |
+| [test_qaoa_circuit_stage2.py](file:///mnt/c/Quantum_VLSI/module1_placement/qaoa/tests/test_qaoa_circuit_stage2.py) | Stage 2b (28-qubit shots) + 2c (2-qubit exact statevector) |
+
+## QUBO → Ising Conversion (the critical piece)
+
+The QUBO uses `x ∈ {0,1}` variables. The circuit operates on `Z ∈ {+1,−1}` spins.  
+Substitution: **x_i = (1 − Z_i) / 2**
+
+```
+Linear QUBO term h·x_i:
+  → Ising linear on Z_i:  −h/2       (constant +h/2 dropped)
+
+Quadratic QUBO term J·x_i·x_j:
+  → Ising linear on Z_i:  −J/4
+  → Ising linear on Z_j:  −J/4
+  → Ising ZZ on Z_i⊗Z_j: +J/4       (constant +J/4 dropped)
+```
+
+Gate decomposition:
+- Single Z: `RZ(2·γ·h)` on qubit i
+- ZZ interaction: `CX(i,j) → RZ(2·γ·J) on j → CX(i,j)`
+
+---
+
+## Test Results — All PASS ✅
+
+### Stage 2a: Qubit Mapping Bijection
+
+| Check | Result |
+|-------|--------|
+| TOTAL_QUBITS | 28 ✓ |
+| Forward bijection (28 unique indices in [0,28)) | ✓ |
+| Round-trip var→idx→var (28 cases) | ✓ |
+| Round-trip idx→var→idx (28 cases) | ✓ |
+| Out-of-range ValueError (10 cases) | ✓ |
+
+### Stage 2b: 28-Qubit Uniform Superposition (γ=0, β=0)
+
+Shot-based uniformity check via GPU AerSimulator (avoids 4GB statevector OOM):
+
+| Metric | Value |
+|---|---|
+| Shots | 8192 |
+| Unique bitstrings | **8192 / 8192** (100%) |
+| Max count for any bitstring | **1** |
+| Per-qubit marginal P(1) min | 0.4882 |
+| Per-qubit marginal P(1) max | 0.5110 |
+| Per-qubit marginal P(1) mean | 0.5015 |
+
+All 8192 samples were unique (zero birthday collisions), confirming true uniform superposition over 2²⁸ ≈ 268M basis states. All 28 qubit marginals within [0.40, 0.60] of the expected 0.5.
+
+### Stage 2c: 2-Qubit Toy QUBO Phase Verification
+
+Toy QUBO: `H = 3·x₀ + 5·x₀·x₁`
+
+**Ising conversion verified:**
+- h[0] = −11/4 = −2.75 ✓
+- h[1] = −5/4 = −1.25 ✓  
+- J[(0,1)] = +5/4 = +1.25 ✓
+
+**Amplitude comparison at γ = 0.7 (CPU statevector, exact):**
+
+| State | QUBO Energy | Expected Amplitude | Actual Amplitude | Diff |
+|---|---|---|---|---|
+| \|00⟩ | 0 | −0.17342179+0.46896149j | −0.17342179+0.46896149j | 5.55e-17 ✓ |
+| \|01⟩ | 3 | +0.49236327−0.08705407j | +0.49236327−0.08705407j | 6.21e-17 ✓ |
+| \|10⟩ | 0 | −0.17342179+0.46896149j | −0.17342179+0.46896149j | 7.85e-17 ✓ |
+| \|11⟩ | 8 | −0.43053977+0.25423514j | −0.43053977+0.25423514j | 2.00e-16 ✓ |
+
+> [!NOTE]
+> All diffs at **machine epsilon** (≤ 2.00e-16). The QUBO→Ising conversion, Qiskit little-endian bit ordering, and RZ/CX-RZ-CX gate decomposition are all correct. Degenerate states |00⟩ and |10⟩ (both QUBO energy 0) have identical amplitudes ✓.
+
+## Architecture Summary
+
+```
+module1_placement/qaoa/
+├── __init__.py
+├── one_hot_qubo.py          ← Stage 1 (untouched)
+├── qubit_mapping.py         ← Stage 2 NEW
+├── qaoa_circuit.py          ← Stage 2 NEW
+└── tests/
+    ├── __init__.py
+    ├── test_one_hot_qubo.py       ← Stage 1
+    ├── test_qubit_mapping.py      ← Stage 2a NEW
+    └── test_qaoa_circuit_stage2.py ← Stage 2b/2c NEW
+```
+
+Ready for **Stage 3** (classical optimizer loop with `scipy.optimize`).
